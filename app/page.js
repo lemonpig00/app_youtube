@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 export default function Home() {
   const [query, setQuery] = useState('');
@@ -9,6 +9,7 @@ export default function Home() {
   const [analyses, setAnalyses] = useState({});
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [formatFilter, setFormatFilter] = useState('all');
 
   useEffect(() => {
     try {
@@ -25,6 +26,16 @@ export default function Home() {
     }
   }, [channel, videos, analyses]);
 
+  const counts = useMemo(() => ({
+    all: videos.length,
+    long: videos.filter(v => v.format === 'long').length,
+    short: videos.filter(v => v.format === 'short').length,
+  }), [videos]);
+
+  const filteredVideos = useMemo(() => (
+    formatFilter === 'all' ? videos : videos.filter(v => v.format === formatFilter)
+  ), [videos, formatFilter]);
+
   async function addChannel(e) {
     e.preventDefault();
     if (!query.trim()) return;
@@ -38,6 +49,7 @@ export default function Home() {
       const vd = await vr.json();
       if (!vr.ok) throw new Error(vd.error || '영상을 불러오지 못했습니다.');
       setVideos(vd.videos || []);
+      setFormatFilter('all');
       setQuery('');
     } catch (e) { setError(e.message); }
     finally { setBusy(false); }
@@ -61,11 +73,17 @@ export default function Home() {
       <form onSubmit={addChannel}><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="채널명, @핸들 또는 YouTube 채널 URL"/><button disabled={busy}>{busy?'불러오는 중…':'채널 등록'}</button></form>
       <small>예: @GoogleDeepMind · 채널 URL · 채널명</small>{error && <div className="error">{error}</div>}
     </section>
-    {channel && <section className="channel"><img src={channel.thumbnail} alt=""/><div><b>{channel.title}</b><span>{channel.customUrl || channel.id}</span></div><button onClick={()=>{setChannel(null);setVideos([]);setAnalyses({});localStorage.removeItem('yt-monitor-state')}}>삭제</button></section>}
-    <section className="content"><div className="sectionTitle"><div><h2>최신 영상</h2><p>{channel ? `${channel.title}의 최근 업로드` : '먼저 관심 YouTube 채널을 등록하세요.'}</p></div>{videos.length>0 && <strong>{videos.length}개</strong>}</div>
-      <div className="grid">{videos.map(v => { const a=analyses[v.id]; return <article key={v.id}>
-        <a className="thumb" href={v.url} target="_blank" rel="noreferrer"><img src={v.thumbnail} alt=""/><span>▶</span></a>
-        <div className="cardbody"><div className="meta">{v.publishedAt} · 조회 {v.views}</div><h3>{v.title}</h3>
+    {channel && <section className="channel"><img src={channel.thumbnail} alt=""/><div><b>{channel.title}</b><span>{channel.customUrl || channel.id}</span></div><button onClick={()=>{setChannel(null);setVideos([]);setAnalyses({});setFormatFilter('all');localStorage.removeItem('yt-monitor-state')}}>삭제</button></section>}
+    <section className="content">
+      <div className="sectionTitle"><div><h2>최신 영상</h2><p>{channel ? `${channel.title}의 최근 업로드` : '먼저 관심 YouTube 채널을 등록하세요.'}</p></div>{videos.length>0 && <strong>{filteredVideos.length} / {videos.length}개</strong>}</div>
+      {videos.length>0 && <div className="formatFilters" role="group" aria-label="영상 형식 필터">
+        <button className={formatFilter==='all'?'active':''} onClick={()=>setFormatFilter('all')}>전체 <span>{counts.all}</span></button>
+        <button className={formatFilter==='long'?'active':''} onClick={()=>setFormatFilter('long')}>롱폼 <span>{counts.long}</span></button>
+        <button className={formatFilter==='short'?'active':''} onClick={()=>setFormatFilter('short')}>숏폼 <span>{counts.short}</span></button>
+      </div>}
+      <div className="grid">{filteredVideos.map(v => { const a=analyses[v.id]; return <article key={v.id}>
+        <a className="thumb" href={v.url} target="_blank" rel="noreferrer"><img src={v.thumbnail} alt=""/><span>▶</span><em className={`formatBadge ${v.format}`}>{v.formatLabel}</em><b className="durationBadge">{v.durationLabel}</b></a>
+        <div className="cardbody"><div className="meta">{v.publishedAt} · 조회 {v.views} · {v.formatLabel}</div><h3>{v.title}</h3>
           {!a && <button className="analyze" onClick={()=>analyze(v)}>✦ Gemini로 영상 분석</button>}
           {a?.loading && <div className="loading">Gemini가 영상을 보고 있습니다…</div>}
           {a?.error && <div className="error">{a.error}</div>}
