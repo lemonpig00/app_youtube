@@ -254,7 +254,7 @@ function AuthModal({ onClose, onDone }) {
     e.preventDefault(); setWorking(true); setError('');
     const result = mode === 'login'
       ? await supabase.auth.signInWithPassword({ email, password })
-      : await supabase.auth.signUp({ email, password });
+      : await supabase.auth.signUp({ email, password, options: { emailRedirectTo: window.location.origin } });
     setWorking(false);
     if (result.error) return setError(result.error.message);
     if (mode === 'signup' && !result.data.session) return onDone('회원가입 완료. 이메일 인증 후 로그인해 주세요.');
